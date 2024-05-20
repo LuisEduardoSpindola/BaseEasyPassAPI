@@ -1,13 +1,16 @@
-
 using System.Text;
+using Api.Adapters_Repository;
+using Api.Domain;
 using Api.Infrastructure;
+using Api.Interface;
+using Api.Services;
 using dotenv.net;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SnapObjects.Data.AspNetCore;
 
-//DotEnv.Load(options: new DotEnvOptions(ignoreExceptions: false));
+DotEnv.Load(options: new DotEnvOptions(ignoreExceptions: false));
 
 var builder = WebApplication.CreateBuilder(args);
 var _envVariables = DotEnv.Read();
@@ -15,6 +18,13 @@ var _envVariables = DotEnv.Read();
 builder.Services.AddDbContext<EasyPassContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString(_envVariables["connectionString"])));
 
+
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+});
+
+builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession(options =>
 {
     options.Cookie.Name = "session";
@@ -32,9 +42,10 @@ builder.Services.AddAuthentication(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
     {
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero,
         ValidateIssuer = true,
         ValidateAudience = true,
-        ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
         ValidIssuer = _envVariables["issuer"],
         ValidAudience = _envVariables["audience"],
@@ -45,26 +56,43 @@ builder.Services.AddAuthentication(options =>
     options.Audience = _envVariables["audience"];
 });
 
-
-
 builder.Services.AddControllers(m =>
 {
     m.UseCoreIntegrated();
 });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-/*builder.Services.AddScoped<IAdministradorDTO, Administrador>();
-builder.Services.AddScoped<IRepository, Repository>();
-builder.Services.AddScoped<IService, Service>();
+builder.Services.AddScoped<IAdminDTO, Admin>();
+builder.Services.AddScoped<IUserDTO, User>();
+builder.Services.AddScoped<IUserLoginDTO, UserLogin>();
+builder.Services.AddScoped<IAdminLoginDTO, AdminLogin>();
+builder.Services.AddScoped<IBussinesDTO, Bussines>();
+builder.Services.AddScoped<IBussinesLoginDTO, BussinesLogin>();
+builder.Services.AddScoped<IRepositoryAdmin, AdminRepository>();
+builder.Services.AddScoped<IRepositoryUser, UserRepository>();
+builder.Services.AddScoped<IRepositoryBussines, BussinesRepository>();
+builder.Services.AddScoped<IServiceAdmin, ServiceAdmin>();
+builder.Services.AddScoped<IServiceUser, ServiceUser>();
+builder.Services.AddScoped<IServiceBussines, ServiceBussines>();
 builder.Services.AddScoped<IAuth, Auth>();
-builder.Services.AddScoped<ICrypto, Crypto>();*/
+builder.Services.AddScoped<ICrypto, Crypto>();
 
 builder.Services.AddMvc();
 builder.Services.AddHttpContextAccessor();
 
 var app = builder.Build();
 app.UseSession();
+app.Use(async (ctx, next) =>
+        {
+            string tokensCSRF = ctx.Request.Cookies["CSRF-TOKEN"];
+            if (string.IsNullOrEmpty(tokensCSRF) == false)
+            {
+                ctx.Request.Headers["X-CSRF-TOKEN"] = tokensCSRF;
+            }
+            await next();
+        });
 
 if (app.Environment.IsDevelopment())
 {
@@ -72,11 +100,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+
+app.UseRouting();
+app.UseAntiforgery();
 app.UseAuthentication();
 app.UseAuthorization();
-//app.UseMiddleware<AuthorizationMiddleware>();
-app.UseHttpsRedirection();
+app.UseMiddleware<AuthorizationMiddleware>();
 
-app.MapControllers();
+app.MapDefaultControllerRoute();
 
 app.Run();
