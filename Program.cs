@@ -1,4 +1,4 @@
-using System.Text;
+ using System.Text;
 using Api.Adapters_Repository;
 using Api.Domain;
 using Api.Infrastructure;
@@ -10,14 +10,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SnapObjects.Data.AspNetCore;
 
-DotEnv.Load(options: new DotEnvOptions(ignoreExceptions: false));
+DotEnv.Load(options: new DotEnvOptions(ignoreExceptions: true));
 
 var builder = WebApplication.CreateBuilder(args);
 var _envVariables = DotEnv.Read();
 
 builder.Services.AddDbContext<EasyPassContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString(_envVariables["connectionString"])));
-
 
 builder.Services.AddAntiforgery(options =>
 {
@@ -69,15 +68,25 @@ builder.Services.AddScoped<IUserDTO, User>();
 builder.Services.AddScoped<IUserLoginDTO, UserLogin>();
 builder.Services.AddScoped<IAdminLoginDTO, AdminLogin>();
 builder.Services.AddScoped<IBussinesDTO, Bussines>();
+builder.Services.AddScoped<IBussDTO, Buss>();
+builder.Services.AddScoped<IBussStopDTO, BusStop>();
+builder.Services.AddScoped<ICardDTO, Card>();
 builder.Services.AddScoped<IBussinesLoginDTO, BussinesLogin>();
 builder.Services.AddScoped<IRepositoryAdmin, AdminRepository>();
 builder.Services.AddScoped<IRepositoryUser, UserRepository>();
 builder.Services.AddScoped<IRepositoryBussines, BussinesRepository>();
+builder.Services.AddScoped<IRepositoryCard, CardRepository>();
+builder.Services.AddScoped<IRepositoryListCpf, ListCpfRepository>();
 builder.Services.AddScoped<IServiceAdmin, ServiceAdmin>();
 builder.Services.AddScoped<IServiceUser, ServiceUser>();
 builder.Services.AddScoped<IServiceBussines, ServiceBussines>();
+builder.Services.AddScoped<IServiceCard, ServiceCard>();
+builder.Services.AddScoped<IServiceListCpf, ServiceListCpf>();
 builder.Services.AddScoped<IAuth, Auth>();
 builder.Services.AddScoped<ICrypto, Crypto>();
+builder.Services.AddScoped<IListCPFValidator, ListCPFValidator>();
+builder.Services.AddScoped<ICpfValidator, CpfValidator>();
+builder.Services.AddScoped<ICnpjValidator, CnpjValidator>();
 
 builder.Services.AddMvc();
 builder.Services.AddHttpContextAccessor();
@@ -85,14 +94,14 @@ builder.Services.AddHttpContextAccessor();
 var app = builder.Build();
 app.UseSession();
 app.Use(async (ctx, next) =>
-        {
-            string tokensCSRF = ctx.Request.Cookies["CSRF-TOKEN"];
-            if (string.IsNullOrEmpty(tokensCSRF) == false)
-            {
-                ctx.Request.Headers["X-CSRF-TOKEN"] = tokensCSRF;
-            }
-            await next();
-        });
+{
+    string tokensCSRF = ctx.Request.Cookies["CSRF-TOKEN"];
+    if (!string.IsNullOrEmpty(tokensCSRF))
+    {
+        ctx.Request.Headers["X-CSRF-TOKEN"] = tokensCSRF;
+    }
+    await next();
+});
 
 if (app.Environment.IsDevelopment())
 {
